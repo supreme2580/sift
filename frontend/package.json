@@ -10,8 +10,9 @@
   },
   "dependencies": {
     "@aztec/bb.js": "^0.87.0",
-    "@stellar/freighter-api": "^3.0.0",
+    "@privy-io/react-auth": "^3.32.2",
     "@stellar/stellar-sdk": "^16.0.1",
+    "buffer": "^6.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
