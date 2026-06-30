@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 
 export type StellarSigner = {
   address: string;
-  signTransaction: (txXdr: string) => Promise<string>;
+  signTransaction: (txXdr: string) => Promise<any>;
 };
 
 export type StellarState = {

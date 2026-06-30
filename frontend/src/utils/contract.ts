@@ -39,9 +39,9 @@ export async function submitClaim(
 
   const assembled = rpc.assembleTransaction(tx, simulation);
   const envelopeXdr = (assembled as any).toEnvelope().toXDR('base64');
-  const signedXdr = await signer.signTransaction(envelopeXdr);
+  const signedTx = await signer.signTransaction(envelopeXdr);
 
-  const result = await server().sendTransaction(signedXdr as any);
+  const result = await server().sendTransaction(signedTx);
   if ((result as any).error) throw new Error((result as any).error);
 
   return (result as any).hash;

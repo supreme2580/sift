@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api, type Allowlist, type Entry, type Claim } from '../utils/api';
 
 export default function AdminPanel() {
@@ -26,14 +26,23 @@ export default function AdminPanel() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadLists(); }, []);
+  useEffect(() => {
+    loadLists();
+    const poll = setInterval(loadLists, 5000);
+    return () => clearInterval(poll);
+  }, []);
 
   useEffect(() => {
     if (!selectedId) return;
-    api.allowlists.getWithDetails(selectedId).then(data => {
-      setEntries(data.entries || []);
-      setClaims(data.claims || []);
-    }).catch(() => setError('Failed to load details'));
+    const loadDetails = () => {
+      api.allowlists.getWithDetails(selectedId).then(data => {
+        setEntries(data.entries || []);
+        setClaims(data.claims || []);
+      }).catch(() => {});
+    };
+    loadDetails();
+    const poll = setInterval(loadDetails, 5000);
+    return () => clearInterval(poll);
   }, [selectedId]);
 
   const handleCreate = async () => {

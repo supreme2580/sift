@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useStellar } from './lib/stellar-context';
 import { api, type Allowlist } from './utils/api';
@@ -6,6 +6,7 @@ import AdminPanel from './components/AdminPanel';
 import EligibilityCheck from './components/EligibilityCheck';
 import ProofGen from './components/ProofGen';
 import ClaimSubmit from './components/ClaimSubmit';
+import UserDropdown from './components/UserDropdown';
 
 type View = 'home' | 'eligibility' | 'proof' | 'claim' | 'done' | 'admin';
 
@@ -21,11 +22,18 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    api.allowlists.list()
-      .then(setAllowlists)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const fetch = () => {
+      api.allowlists.list()
+        .then(setAllowlists)
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
+    fetch();
+    pollRef.current = setInterval(fetch, 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
   const selectedAllowlist = selectedList || allowlists.find(a => a.status === 'finalized');
@@ -132,7 +140,8 @@ export default function App() {
             <span>zkGate Admin</span>
           </div>
           <div className="nav-user">
-            <button className="btn btn-ghost btn-small" onClick={reset}>Back</button>
+            <button className="btn btn-ghost btn-small" onClick={() => { reset(); setView('home'); }}>Back</button>
+            <UserDropdown />
           </div>
         </nav>
         <main className="main">
@@ -153,8 +162,7 @@ export default function App() {
           <button className="btn btn-ghost btn-small" onClick={() => setView('admin')}>
             Admin
           </button>
-          <span className="nav-address">{address?.slice(0, 4)}...{address?.slice(-4)}</span>
-          <div className="nav-dot" />
+          <UserDropdown />
         </div>
       </nav>
 

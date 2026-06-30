@@ -111,15 +111,35 @@ This script demonstrates the complete lifecycle:
 ### For Operators (via Admin Panel)
 
 1. Connect wallet → click **Admin** in the nav
-2. **Create Allowlist** — give it a name, description, and your deployed contract ID
-3. **Add Entries** — paste secrets (one per line). Address indices are auto-assigned.
+2. **Create Allowlist** — example form values:
+
+   | Field | Example Value |
+   |-------|--------------|
+   | **Name** | `Hackathon Allowlist` |
+   | **Description** | `Private access for hackathon participants` |
+   | **Contract ID** | `CCTT4PCB7DUJWG62EKMZNLVRUVBLQRVNWL4ETEACUT6DTBRQVJEYKSYX` |
+
+3. **Add Entries** — paste one secret per line. Address indices are auto-assigned.
+
+   ```
+   secret_alice_2024
+   secret_bob_2024
+   secret_carol_2024
+   42
+   my_invite_code
+   ```
+
+   **What are secrets?** They are invitation codes or passwords chosen by you (the operator). You distribute them **outside the app** — e.g., email each participant their secret, DM them on Discord, or hand them out in person. Each participant needs their `(address_index, secret)` pair to prove they belong. Without the correct secret, nobody can generate a valid proof even if they know the address index.
+
 4. **Finalize** — the API computes the Merkle tree and calls `set_root` on your Soroban contract. The allowlist is now live.
+
+   > The status changes from **draft** → **finalized**. While in draft you can still add/remove entries; after finalization the root is on-chain and entries are locked.
 
 ### For Clients
 
 1. Connect wallet via Privy (Google, Discord, Email, Telegram, etc.)
 2. Select an allowlist from the list
-3. Enter your address index + secret
+3. Enter your **address index** and **secret** (received from the operator)
 4. Generate ZK proof (in-browser via bb.js WASM)
 5. Submit claim — the Soroban contract verifies the proof and marks the nullifier as claimed
 
