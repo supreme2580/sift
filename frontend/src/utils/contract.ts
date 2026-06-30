@@ -1,10 +1,10 @@
 import { isConnected, getPublicKey, signTransaction } from '@stellar/freighter-api';
 import { rpc, Contract, TransactionBuilder, Networks, nativeToScVal, xdr } from '@stellar/stellar-sdk';
 
-const RPC_URL = import.meta.env.VITE_RPC_URL || 'https://soroban-testnet.stellar.org';
-const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID || 'CCJZ5FPKBA3TBL3SQ4PAQPGGAYQBZKCQJUXITPRFCQJZLTG4LUODJW47';
-const NETWORK = import.meta.env.VITE_NETWORK || 'TESTNET';
-const NETWORK_PASSPHRASE = NETWORK === 'PUBLIC' ? Networks.PUBLIC : Networks.TESTNET;
+const RPC_URL = import.meta.env.VITE_STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
+const CONTRACT_ID = import.meta.env.VITE_CONTRACT_ID || 'CCTT4PCB7DUJWG62EKMZNLVRUVBLQRVNWL4ETEACUT6DTBRQVJEYKSYX';
+const NETWORK = import.meta.env.VITE_STELLAR_NETWORK || 'TESTNET';
+const NETWORK_PASSPHRASE = import.meta.env.VITE_STELLAR_NETWORK_PASSPHRASE || (NETWORK === 'PUBLIC' ? Networks.PUBLIC : Networks.TESTNET);
 
 let _server: rpc.Server | null = null;
 function server(): rpc.Server {
