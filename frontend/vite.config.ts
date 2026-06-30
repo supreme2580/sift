@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 import fs from 'fs';
 
 export default defineConfig({
+  define: {
+    'process.env': {},
+  },
   plugins: [react()],
   optimizeDeps: {
     include: ['@aztec/bb.js'],
