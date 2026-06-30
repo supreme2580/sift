@@ -33,12 +33,10 @@ export async function setContractRoot(contractId: string, root: bigint, adminSec
   if (simulation.error) throw new Error(`Simulation error: ${simulation.error}`);
 
   const assembled: any = rpc.assembleTransaction(tx, simulation);
-  const envelope = assembled.toEnvelope().toXDR('base64');
+  const transaction = assembled.build();
+  transaction.sign(kp);
 
-  const tx2: any = TransactionBuilder.fromXDR(envelope, NETWORK_PASSPHRASE);
-  tx2.sign(kp);
-
-  const result: any = await serv.sendTransaction(tx2.toXDR());
+  const result: any = await serv.sendTransaction(transaction);
   if (result.error) throw new Error(`Transaction error: ${result.error}`);
 
   return result.hash;

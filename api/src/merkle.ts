@@ -7,9 +7,22 @@ async function getApi(): Promise<BarretenbergSync> {
   return api;
 }
 
-export async function pedersenHash(left: number, right: number): Promise<bigint> {
+export function secretToField(secret: string): bigint {
+  const n = Number(secret);
+  if (!isNaN(n) && Number.isInteger(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER) {
+    return BigInt(n);
+  }
+  const bytes = new TextEncoder().encode(secret);
+  let result = 0n;
+  for (const b of bytes) {
+    result = (result << 8n) + BigInt(b);
+  }
+  return result;
+}
+
+export async function pedersenHash(left: bigint, right: bigint): Promise<bigint> {
   const bp = await getApi();
-  const r = bp.pedersenHash([new Fr(BigInt(left)), new Fr(BigInt(right))], 0);
+  const r = bp.pedersenHash([new Fr(left), new Fr(right)], 0);
   return BigInt(r.toString());
 }
 
@@ -20,35 +33,41 @@ export interface MerkleProof {
   index: number[];
 }
 
+const MERKLE_DEPTH = 4;
+const MERKLE_SIZE = Math.pow(2, MERKLE_DEPTH); // 16 leaves
+
 export async function buildTree(entries: { addressIndex: number; secret: string }[]): Promise<{
   root: bigint;
   leaves: bigint[];
   getProof: (addressIndex: number, secret: string) => MerkleProof | null;
 }> {
   const count = entries.length;
-  const depth = Math.max(Math.ceil(Math.log2(count)), 1);
+  if (count > MERKLE_SIZE) {
+    throw new Error(`Tree can hold at most ${MERKLE_SIZE} entries (got ${count})`);
+  }
 
   const leaves: bigint[] = [];
   for (const e of entries) {
-    const leaf = await pedersenHash(e.addressIndex, parseInt(e.secret));
+    const secretVal = secretToField(e.secret);
+    const leaf = await pedersenHash(BigInt(e.addressIndex), secretVal);
     leaves.push(leaf);
   }
 
-  while (leaves.length < Math.pow(2, depth)) {
+  while (leaves.length < MERKLE_SIZE) {
     leaves.push(0n);
   }
 
   const tree: bigint[][] = [leaves];
-  for (let h = 0; h < depth; h++) {
+  for (let h = 0; h < MERKLE_DEPTH; h++) {
     const level = tree[h];
     const next: bigint[] = [];
     for (let i = 0; i < level.length; i += 2) {
-      next.push(await pedersenHash(Number(level[i]), Number(level[i + 1])));
+      next.push(await pedersenHash(level[i], level[i + 1]));
     }
     tree.push(next);
   }
 
-  const root = tree[depth][0];
+  const root = tree[MERKLE_DEPTH][0];
 
   function getProof(addressIndex: number, secret: string): MerkleProof | null {
     const entryIdx = entries.findIndex(e => e.addressIndex === addressIndex && e.secret === secret);
@@ -59,17 +78,14 @@ export async function buildTree(entries: { addressIndex: number; secret: string 
     const index: number[] = [];
     let idx = entryIdx;
 
-    for (let h = 0; h < depth; h++) {
+    for (let h = 0; h < MERKLE_DEPTH; h++) {
       const sibling = idx % 2 === 0 ? tree[h][idx + 1] : tree[h][idx - 1];
       path.push(sibling);
       index.push(idx % 2);
       idx = Math.floor(idx / 2);
     }
 
-    while (path.length < 4) path.push(0n);
-    while (index.length < 4) index.push(0);
-
-    return { leaf, root, path: path.slice(0, 4), index: index.slice(0, 4) };
+    return { leaf, root, path, index };
   }
 
   return { root, leaves, getProof };

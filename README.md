@@ -2,115 +2,214 @@
 
 Zero-Knowledge Private Allowlist Verification on Stellar.
 
-Prove you're on an allowlist (for airdrops, NFT mints, gated tokens) without revealing which address you are. Built with Noir, UltraHonk, and Soroban.
+Prove you're on an allowlist (airdrops, NFT mints, gated tokens) without revealing which address you are. Built with Noir, UltraHonk, and Soroban.
 
 ## How It Works
 
-1. **Admin** sets a Merkle root of all eligible addresses on-chain.
-2. **User** proves they know a valid (address, secret) pair by generating a ZK proof.
-3. **Soroban contract** verifies the UltraHonk proof on-chain and marks the nullifier as claimed.
-
-The proof reveals only the Merkle root and nullifier — the user's specific address remains private.
+```
+Operator                         Client
+   │                               │
+   ├─ Create allowlist ─────────── │
+   ├─ Add entries (addr + secret)  │
+   ├─ Finalize (compute Merkle     │
+   │  root, deploy to Soroban)     │
+   │                               │
+   │            ───────────────────│─ Pick allowlist
+   │            Enter addr+secret ─│
+   │            ───────────────────│─ Get Merkle proof from API
+   │                               ├─ Generate ZK proof (in-browser)
+   │                               ├─ Submit claim → Soroban
+   │                               │
+   │                               │  ✓ Identity stays private
+   │                               │  ✓ Only root + nullifier public
+```
 
 ## Architecture
 
 ```
-┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Frontend   │────▶│  Noir Circuit    │────▶│  Soroban Contract │
-│  (React/Vite)│     │  (ZK Proof Gen)  │     │  (ZK Verification)│
-└──────────────┘     └──────────────────┘     └──────────────────┘
-       │                      │                        │
-       │                      │                        │
-   Freighter              bb.js WASM               Stellar
-   Wallet              (in-browser proof)          Testnet
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│    Frontend      │────▶│    API Server    │────▶│    Soroban       │
+│  Vite + React    │     │  Express + SQLite│     │  Contract (Rust) │
+│  Privy Wallet    │     │  bb.js Merkle    │     │  UltraHonk Verify│
+│  bb.js ZK Proof  │     │  Stellar SDK     │     │  Pedersen Hash   │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+        │                       │
+        │   @privy-io/react-auth (Google/Discord/Email login)
+        │   @aztec/bb.js (UltraHonk proofs + Merkle in-browser)
 ```
 
 ### Components
 
-- **Circuit** (`circuits/eligibility/`): Noir circuit implementing Merkle membership proof with nullifier
-- **Contract** (`contracts/zkgate/`): Soroban smart contract with `verify_and_claim`, `set_root`, `is_claimed`
-- **UltraHonk Verifier** (`crates/ultrahonk-soroban-verifier/`): Rust implementation of UltraHonk verification for Soroban
-- **Frontend** (`frontend/`): Vite + React + TypeScript with Freighter wallet integration
+| Component | Path | Description |
+|-----------|------|-------------|
+| **Circuit** | `circuits/eligibility/` | Noir circuit: Merkle membership (depth 4) + nullifier |
+| **Contract** | `contracts/zkgate/` | Soroban contract: `verify_and_claim`, `set_root`, `is_claimed` |
+| **API Server** | `api/` | Express + SQLite + bb.js: manage allowlists, compute Merkle trees, serve proofs |
+| **Frontend** | `frontend/` | Vite + React + Privy: admin panel + client flow + in-browser ZK proofs |
+| **UltraHonk Verifier** | `crates/ultrahonk-soroban-verifier/` | Rust UltraHonk verification for Soroban |
 
 ## Prerequisites
 
-- [Nargo](https://noir-lang.org/) 1.0.0-beta.9
-- [Barretenberg](https://github.com/AztecProtocol/barretenberg) (bb) 0.87.0
-- [Rust](https://rustup.rs/) 1.92+ with `wasm32v1-none` target
-- [Stellar CLI](https://developers.stellar.org/docs/tools/cli) 23.4.1
 - [Node.js](https://nodejs.org/) 22+
 - [pnpm](https://pnpm.io/) 11+
-- [Docker](https://docker.com/) (for Stellar QuickStart)
+- [mkcert](https://github.com/FiloSottile/mkcert) (for local HTTPS)
+
+## How Secrets Work (String → Field)
+
+zkGate secrets are arbitrary strings. Since the Noir circuit operates on `Field` (big integer) values, both the API and frontend use a `secretToField` helper to convert:
+
+| Input | Output |
+|-------|--------|
+| `"42"` (numeric string) | `42n` — parsed directly as a bigint |
+| `"alice_secret_2024"` (text) | BigInt from UTF‑8 bytes, MSB-first |
+
+This way, operators can use human-readable secrets (passphrases, email addresses, nicknames) and the Merkle tree + circuit handle them uniformly as field elements.
+
+## Merkle Tree
+
+The Noir circuit uses a fixed Merkle depth of 4 (up to 16 leaves). The API (`api/src/merkle.ts`) builds the tree at that depth, padding unused leaves with zero. The proof path always contains exactly 4 sibling hashes and 4 direction bits.
+
+Pedersen hashing is done via `@aztec/bb.js` (Barretenberg), the same WASM library used for UltraHonk proof generation. This ensures hash consistency between the API, the frontend, and the Noir circuit.
 
 ## Quick Start
 
-### 1. Build the Circuit
+### 1. Start the API
 
 ```bash
-cd circuits/eligibility
-nargo compile
-nargo test
+cd api
+pnpm install
+pnpm dev
+# → http://localhost:3001
 ```
 
-### 2. Generate Proof
-
-```bash
-# Generate Prover.toml with Merkle tree data
-node scripts/generate_prover_data.mjs
-
-# Execute circuit and generate witness
-cd circuits/eligibility && nargo execute
-
-# Generate UltraHonk proof (keccak oracle)
-bb prove_ultra_keccak_honk \
-  -b target/eligibility.json \
-  -w target/eligibility.gz \
-  -o target/proof/proof
-
-# Write verification key
-bb write_vk_ultra_keccak_honk \
-  -b target/eligibility.json \
-  -o target/proof/vk
-```
-
-### 3. Build the Contract
-
-```bash
-cargo build -p zkgate --target wasm32v1-none --release
-```
-
-### 4. Deploy
-
-```bash
-# Start Stellar testnet
-docker run --rm -it -p 8000:8000 stellar/quickstart:v23.04.1 \
-  --testnet --enable-soroban-rpc
-
-# Deploy contract
-export SOURCE_ACCOUNT=<your-public-key>
-./scripts/deploy.sh
-
-# Run tests
-./scripts/test_e2e.sh
-```
-
-### 5. Start the Frontend
+### 2. Start the Frontend
 
 ```bash
 cd frontend
 pnpm install
 pnpm dev
+# → https://localhost:5173
 ```
 
-## Demo
+### 3. Run the Full Demo Cycle
 
-For the hackathon demo, use address `1` with secret `42`:
+```bash
+source .env && node examples/demo_full.mjs
+```
 
-1. Connect Freighter wallet
-2. Select address `#1` and enter secret `42`
-3. Click "Check Eligibility"
-4. Generate or load a pre-generated proof
-5. Submit the claim transaction
+This script demonstrates the complete lifecycle:
+
+1. **Operator creates** an allowlist
+2. **Operator adds** 8 entries with different secrets (strings and numbers)
+3. **Operator finalizes** → Merkle tree computed via bb.js, root deployed to Soroban
+4. **Client requests** a Merkle proof (index 5, secret `"42"`)
+5. **Proof verified** locally using bb.js
+6. **Invalid credentials** correctly rejected
+
+## Full Lifecycle Guide
+
+### For Operators (via Admin Panel)
+
+1. Connect wallet → click **Admin** in the nav
+2. **Create Allowlist** — give it a name, description, and your deployed contract ID
+3. **Add Entries** — paste secrets (one per line). Address indices are auto-assigned.
+4. **Finalize** — the API computes the Merkle tree and calls `set_root` on your Soroban contract. The allowlist is now live.
+
+### For Clients
+
+1. Connect wallet via Privy (Google, Discord, Email, Telegram, etc.)
+2. Select an allowlist from the list
+3. Enter your address index + secret
+4. Generate ZK proof (in-browser via bb.js WASM)
+5. Submit claim — the Soroban contract verifies the proof and marks the nullifier as claimed
+
+### Via API Directly
+
+**Create allowlist:**
+```bash
+curl -X POST http://localhost:3001/api/admin/allowlists \
+  -H "Authorization: Bearer $ADMIN_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My List","description":"For contributors","contract_id":"CCTT4PCB7DUJWG62EKMZNLVRUVBLQRVNWL4ETEACUT6DTBRQVJEYKSYX"}'
+```
+
+**Add entries:**
+```bash
+curl -X POST http://localhost:3001/api/admin/allowlists/<LIST_ID>/entries \
+  -H "Authorization: Bearer $ADMIN_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"entries":[{"secret":"my_secret"},{"secret":"another_secret"}]}'
+```
+
+**Finalize:**
+```bash
+curl -X POST http://localhost:3001/api/admin/allowlists/<LIST_ID>/finalize \
+  -H "Authorization: Bearer $ADMIN_SECRET_KEY"
+```
+
+**Get proof (public):**
+```bash
+curl -X POST http://localhost:3001/api/allowlists/<LIST_ID>/proof \
+  -H "Content-Type: application/json" \
+  -d '{"address_index":0,"secret":"my_secret"}'
+```
+
+## Deploying a Contract
+
+```bash
+# Build
+cargo build -p zkgate --target wasm32v1-none --release
+
+# Install (upload WASM)
+stellar contract upload \
+  --wasm target/wasm32v1-none/release/zkgate.wasm \
+  --source-account $ADMIN_PUBLIC_KEY \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015"
+
+# Deploy (with verification key)
+stellar contract deploy \
+  --wasm-hash <HASH_FROM_UPLOAD> \
+  --source-account $ADMIN_PUBLIC_KEY \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  -- \
+  --vk-bytes-file circuits/eligibility/target/proof/vk
+
+# Set VITE_CONTRACT_ID and ZKGATE_CONTRACT_ID in .env
+```
+
+## Deployed Contracts (Testnet)
+
+| Contract | ID |
+|----------|----|
+| **zkGate** | `CCTT4PCB7DUJWG62EKMZNLVRUVBLQRVNWL4ETEACUT6DTBRQVJEYKSYX` |
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and set:
+
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_SECRET_KEY` | Stellar secret key for admin operations |
+| `ZKGATE_CONTRACT_ID` | Deployed Soroban contract ID |
+| `PRIVY_APP_ID` | Privy app ID for wallet connections |
+| `VITE_API_URL` | URL of the zkGate API |
+| `VITE_ADMIN_API_TOKEN` | Same as `ADMIN_SECRET_KEY` (for frontend admin) |
+
+## Demo Script
+
+```bash
+# Run the full lifecycle demo
+source .env && node examples/demo_full.mjs
+
+# Expected output:
+#   ✅ Allowlist created
+#   ✅ 8 entries added
+#   ✅ Merkle root deployed to contract
+#   ✅ Client proof generated and verified
+#   ✅ Invalid credentials rejected
+```
 
 ## License
 

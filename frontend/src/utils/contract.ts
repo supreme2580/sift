@@ -35,16 +35,16 @@ export async function submitClaim(
     .build();
 
   const simulation = await server().simulateTransaction(tx);
-  if (simulation.error) throw new Error(`Simulation error: ${simulation.error}`);
+  if ((simulation as any).error) throw new Error(`Simulation error: ${(simulation as any).error}`);
 
   const assembled = rpc.assembleTransaction(tx, simulation);
-  const envelopeXdr = assembled.toEnvelope().toXDR('base64');
+  const envelopeXdr = (assembled as any).toEnvelope().toXDR('base64');
   const signedXdr = await signer.signTransaction(envelopeXdr);
 
-  const result = await server().sendTransaction(signedXdr);
-  if (result.error) throw new Error(result.error);
+  const result = await server().sendTransaction(signedXdr as any);
+  if ((result as any).error) throw new Error((result as any).error);
 
-  return result.hash;
+  return (result as any).hash;
 }
 
 export async function isClaimed(nullifier: bigint): Promise<boolean> {
@@ -58,5 +58,5 @@ export async function isClaimed(nullifier: bigint): Promise<boolean> {
       .setTimeout(30)
       .build(),
   );
-  return result.result?.retval === true;
+  return (result as any).result?.retval === true;
 }
