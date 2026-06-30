@@ -38,6 +38,7 @@ export default function App() {
   return (
     <div className="app">
       <div className="header">
+        <img src="/logo.png" alt="zkGate" width={80} height={80} className="logo" />
         <h1>zkGate</h1>
         <p>Zero-Knowledge Private Allowlist for Stellar</p>
       </div>
