@@ -1,47 +1,73 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useStellar } from './lib/stellar-context';
+import { api, type Allowlist } from './utils/api';
+import AdminPanel from './components/AdminPanel';
 import EligibilityCheck from './components/EligibilityCheck';
 import ProofGen from './components/ProofGen';
 import ClaimSubmit from './components/ClaimSubmit';
-import type { MerkleProof } from './utils/merkle';
 
-type Step = 'eligibility' | 'proof' | 'claim' | 'done';
-
-const STEP_LABELS = ['Eligibility', 'Proof', 'Claim'];
+type View = 'home' | 'eligibility' | 'proof' | 'claim' | 'done' | 'admin';
 
 export default function App() {
   const { login, ready } = usePrivy();
   const { isConnected, address } = useStellar();
-  const [step, setStep] = useState<Step>('eligibility');
+  const [view, setView] = useState<View>('home');
+  const [allowlists, setAllowlists] = useState<Allowlist[]>([]);
+  const [selectedList, setSelectedList] = useState<Allowlist | null>(null);
+  const [addressIndex, setAddressIndex] = useState(0);
+  const [secret, setSecret] = useState('');
   const [proofData, setProofData] = useState<{ proof: Uint8Array; publicInputs: Uint8Array } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const stepIndex = ['eligibility', 'proof', 'claim'].indexOf(step);
+  useEffect(() => {
+    api.allowlists.list()
+      .then(setAllowlists)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleEligible = (_address: number, _secret: number, _proof: MerkleProof) => {
-    setStep('proof');
+  const selectedAllowlist = selectedList || allowlists.find(a => a.status === 'finalized');
+
+  const handleSelectList = (list: Allowlist) => {
+    setSelectedList(list);
+    setView('eligibility');
+  };
+
+  const handleEligible = (idx: number, sec: string) => {
+    setAddressIndex(idx);
+    setSecret(sec);
+    setView('proof');
   };
 
   const handleProofGenerated = (proof: Uint8Array, publicInputs: Uint8Array) => {
     setProofData({ proof, publicInputs });
-    setStep('claim');
+    setView('claim');
   };
 
   const handleSkipToClaim = (proof: Uint8Array, publicInputs: Uint8Array) => {
     setProofData({ proof, publicInputs });
-    setStep('claim');
+    setView('claim');
   };
 
   const handleClaimDone = () => {
-    setStep('done');
+    setView('done');
+  };
+
+  const reset = () => {
+    setView('home');
+    setSelectedList(null);
+    setProofData(null);
+    setAddressIndex(0);
+    setSecret('');
+    setError('');
   };
 
   if (!ready) {
     return (
       <div className="app">
-        <div className="loading-screen">
-          <div className="spinner" />
-        </div>
+        <div className="loading-screen"><div className="spinner" /></div>
       </div>
     );
   }
@@ -65,7 +91,7 @@ export default function App() {
             </div>
             <h1>Private Allowlist Verification</h1>
             <p className="hero-subtitle">
-              Prove you're on the allowlist without revealing your identity.
+              Prove you're on an allowlist without revealing your identity.
               Powered by zero-knowledge proofs on Stellar.
             </p>
             <button className="btn btn-primary btn-hero" onClick={() => login()}>
@@ -76,33 +102,41 @@ export default function App() {
               </svg>
               Connect Wallet
             </button>
-            <p className="hero-note">
-              Sign in with Google, Discord, Email, or more
-            </p>
+            <p className="hero-note">Sign in with Google, Discord, Email, or more</p>
           </div>
           <div className="hero-features">
             <div className="hero-feature">
               <div className="feature-icon">ZK</div>
-              <div>
-                <strong>Zero-Knowledge</strong>
-                <span>Your data stays private</span>
-              </div>
+              <div><strong>Zero-Knowledge</strong><span>Your data stays private</span></div>
             </div>
             <div className="hero-feature">
               <div className="feature-icon">ST</div>
-              <div>
-                <strong>Stellar Network</strong>
-                <span>Verified on Soroban</span>
-              </div>
+              <div><strong>Stellar Network</strong><span>Verified on Soroban</span></div>
             </div>
             <div className="hero-feature">
               <div className="feature-icon">NK</div>
-              <div>
-                <strong>UltraHonk</strong>
-                <span>Barretenberg proofs</span>
-              </div>
+              <div><strong>UltraHonk</strong><span>Barretenberg proofs</span></div>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (view === 'admin') {
+    return (
+      <div className="app">
+        <nav className="nav">
+          <div className="nav-brand">
+            <img src="/logo.png" alt="zkGate" width={32} height={32} />
+            <span>zkGate Admin</span>
+          </div>
+          <div className="nav-user">
+            <button className="btn btn-ghost btn-small" onClick={reset}>Back</button>
+          </div>
+        </nav>
+        <main className="main">
+          <AdminPanel />
         </main>
       </div>
     );
@@ -115,69 +149,91 @@ export default function App() {
           <img src="/logo.png" alt="zkGate" width={32} height={32} />
           <span>zkGate</span>
         </div>
-        <div className="nav-user">
-          <span className="nav-address">
-            {address?.slice(0, 4)}...{address?.slice(-4)}
-          </span>
+        <div className="nav-user" style={{ gap: 12 }}>
+          <button className="btn btn-ghost btn-small" onClick={() => setView('admin')}>
+            Admin
+          </button>
+          <span className="nav-address">{address?.slice(0, 4)}...{address?.slice(-4)}</span>
           <div className="nav-dot" />
         </div>
       </nav>
 
       <main className="main">
-        <div className="steps">
-          {STEP_LABELS.map((label, i) => (
-            <div key={label} className="step-item">
-              {i > 0 && <div className={`step-line ${i <= stepIndex ? 'active' : ''}`} />}
-              <div
-                className={`step-dot ${i === stepIndex ? 'active' : i < stepIndex ? 'done' : ''}`}
-              >
-                {i < stepIndex ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                ) : (
-                  label[0]
-                )}
+        {view === 'home' && (
+          <div className="card">
+            <h2>Select Allowlist</h2>
+            <p>Choose an allowlist to check your eligibility.</p>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 24 }}>
+                <span className="spinner" />
               </div>
-              <span className={`step-label ${i <= stepIndex ? 'active' : ''}`}>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="step-content">
-          {step === 'eligibility' && <EligibilityCheck onEligible={handleEligible} />}
-
-          {step === 'proof' && (
-            <ProofGen
-              onProofGenerated={handleProofGenerated}
-              onSkipToClaim={handleSkipToClaim}
-            />
-          )}
-
-          {step === 'claim' && proofData && (
-            <ClaimSubmit
-              proof={proofData.proof}
-              publicInputs={proofData.publicInputs}
-              onDone={handleClaimDone}
-            />
-          )}
-
-          {step === 'done' && (
-            <div className="card card-success">
-              <div className="success-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
+            ) : error ? (
+              <div className="alert alert-error">{error}</div>
+            ) : allowlists.length === 0 ? (
+              <div className="status-box info">
+                No allowlists yet. An operator needs to create and finalize one.
               </div>
-              <h2>Claim Complete</h2>
-              <p>Your proof has been verified and your claim has been submitted successfully. Your identity remains private.</p>
-              <button className="btn btn-primary" onClick={() => setStep('eligibility')}>
-                Start Over
-              </button>
+            ) : (
+              <div className="allowlist-list">
+                {allowlists.map(list => (
+                  <button
+                    key={list.id}
+                    className="allowlist-item"
+                    onClick={() => handleSelectList(list)}
+                    disabled={list.status !== 'finalized'}
+                  >
+                    <div className="allowlist-item-main">
+                      <strong>{list.name}</strong>
+                      <span className="allowlist-desc">{list.description}</span>
+                    </div>
+                    <div className="allowlist-item-meta">
+                      <span className={`badge ${list.status}`}>{list.status}</span>
+                      <span className="count">{list.entry_count} entries</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === 'eligibility' && selectedAllowlist && (
+          <EligibilityCheck
+            allowlist={selectedAllowlist}
+            onEligible={handleEligible}
+            onBack={() => setView('home')}
+          />
+        )}
+
+        {view === 'proof' && (
+          <ProofGen
+            onProofGenerated={handleProofGenerated}
+            onSkipToClaim={handleSkipToClaim}
+            onBack={() => setView('eligibility')}
+          />
+        )}
+
+        {view === 'claim' && proofData && (
+          <ClaimSubmit
+            proof={proofData.proof}
+            publicInputs={proofData.publicInputs}
+            onDone={handleClaimDone}
+          />
+        )}
+
+        {view === 'done' && (
+          <div className="card card-success">
+            <div className="success-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
             </div>
-          )}
-        </div>
+            <h2>Claim Complete</h2>
+            <p>Your proof has been verified and your claim submitted. Your identity remains private.</p>
+            <button className="btn btn-primary" onClick={reset}>Start Over</button>
+          </div>
+        )}
       </main>
 
       <footer className="footer">

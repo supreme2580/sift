@@ -13,11 +13,6 @@ export async function pedersenHash(left: number, right: number): Promise<bigint>
   return BigInt(r.toString());
 }
 
-export const ALLOWLIST = Array.from({ length: 16 }, (_, i) => ({
-  address: i,
-  secret: i === 1 ? 42 : 0,
-}));
-
 export interface MerkleProof {
   leaf: bigint;
   path: bigint[];
@@ -25,26 +20,37 @@ export interface MerkleProof {
   root: bigint;
 }
 
-export async function generateMerkleProof(address: number, secret: number): Promise<MerkleProof | null> {
-  const idx = ALLOWLIST.findIndex(e => e.address === address && e.secret === secret);
+export async function buildMerkleProof(
+  entries: { address: number; secret: number }[],
+  addressIdx: number,
+  secret: number,
+  depth = 4,
+): Promise<MerkleProof | null> {
+  const idx = entries.findIndex(e => e.address === addressIdx && e.secret === secret);
   if (idx === -1) return null;
 
   const leaves: bigint[] = [];
-  for (const e of ALLOWLIST) leaves.push(await pedersenHash(e.address, e.secret));
+  for (const e of entries) {
+    leaves.push(await pedersenHash(e.address, e.secret));
+  }
+
+  while (leaves.length < Math.pow(2, depth)) {
+    leaves.push(0n);
+  }
 
   const levels: bigint[][] = [leaves];
-  for (let h = 0; h < 4; h++) {
+  for (let h = 0; h < depth; h++) {
     const lv = levels[h];
     const nxt: bigint[] = [];
     for (let i = 0; i < lv.length; i += 2) nxt.push(await pedersenHash(Number(lv[i]), Number(lv[i + 1])));
     levels.push(nxt);
   }
-  const root = levels[4][0];
+  const root = levels[depth][0];
 
   const path: bigint[] = [];
   const index: number[] = [];
   let cur = idx;
-  for (let h = 0; h < 4; h++) {
+  for (let h = 0; h < depth; h++) {
     const sibling = cur % 2 === 0 ? cur + 1 : cur - 1;
     path.push(levels[h][sibling]);
     index.push(cur % 2);
@@ -52,10 +58,11 @@ export async function generateMerkleProof(address: number, secret: number): Prom
   }
 
   let chk = leaves[idx];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < depth; i++) {
     chk = index[i] === 0
       ? await pedersenHash(Number(chk), Number(path[i]))
       : await pedersenHash(Number(path[i]), Number(chk));
   }
+
   return chk === root ? { leaf: leaves[idx], path, index, root } : null;
 }

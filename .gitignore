@@ -12,3 +12,6 @@ frontend/dist
 __pycache__
 *.swp
 *.swo
+
+# API database
+api/data/

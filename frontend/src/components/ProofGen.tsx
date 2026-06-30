@@ -3,9 +3,10 @@ import { useState } from 'react';
 interface Props {
   onProofGenerated: (proof: Uint8Array, publicInputs: Uint8Array) => void;
   onSkipToClaim: (proof: Uint8Array, publicInputs: Uint8Array) => void;
+  onBack: () => void;
 }
 
-export default function ProofGen({ onProofGenerated, onSkipToClaim }: Props) {
+export default function ProofGen({ onProofGenerated, onSkipToClaim, onBack }: Props) {
   const [generating, setGenerating] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [done, setDone] = useState(false);
@@ -61,38 +62,22 @@ export default function ProofGen({ onProofGenerated, onSkipToClaim }: Props) {
   return (
     <div className="card">
       <h2>{done ? 'Proof Ready' : 'Generate Proof'}</h2>
-      <p>
-        Generate a zero-knowledge proof that you are on the allowlist
-        without revealing your address.
-      </p>
+      <p>Generate a zero-knowledge proof that you are on the allowlist without revealing your identity.</p>
 
       {!done && (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn btn-primary"
-            onClick={handleGenerate}
-            disabled={generating}
-            style={{ flex: 1 }}
-          >
-            {generating && mode === 'generate' ? (
-              <><span className="spinner" /> Generating…</>
-            ) : (
-              'Generate ZK Proof'
-            )}
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button className="btn btn-primary" onClick={handleGenerate} disabled={generating} style={{ flex: 1 }}>
+              {generating && mode === 'generate' ? <><span className="spinner" /> Generating…</> : 'Generate ZK Proof'}
+            </button>
+            <button className="btn btn-ghost" onClick={handlePregen} disabled={generating} style={{ flex: 1 }}>
+              {generating && mode === 'pregen' ? <><span className="spinner" /> Loading…</> : 'Use Pre-generated'}
+            </button>
+          </div>
+          <button className="btn btn-ghost" onClick={onBack} disabled={generating}>
+            Back
           </button>
-          <button
-            className="btn btn-outline"
-            onClick={handlePregen}
-            disabled={generating}
-            style={{ flex: 1 }}
-          >
-            {generating && mode === 'pregen' ? (
-              <><span className="spinner" /> Loading…</>
-            ) : (
-              'Use Pre-generated'
-            )}
-          </button>
-        </div>
+        </>
       )}
 
       {done && (

@@ -1,35 +1,28 @@
 import { useState } from 'react';
-import type { MerkleProof } from '../utils/merkle';
+import { api, type Allowlist } from '../utils/api';
 
 interface Props {
-  onEligible: (address: number, secret: number, proof: MerkleProof) => void;
+  allowlist: Allowlist;
+  onEligible: (addressIndex: number, secret: string) => void;
+  onBack: () => void;
 }
 
-export default function EligibilityCheck({ onEligible }: Props) {
-  const [address, setAddress] = useState<number>(1);
-  const [secret, setSecret] = useState('42');
+export default function EligibilityCheck({ allowlist, onEligible, onBack }: Props) {
+  const [addressIdx, setAddressIdx] = useState(0);
+  const [secret, setSecret] = useState('');
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{ eligible: boolean; msg: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const handleCheck = async () => {
+    if (!secret) return;
     setChecking(true);
     setResult(null);
     try {
-      const { generateMerkleProof } = await import('../utils/merkle');
-      const secretNum = parseInt(secret, 10);
-      if (isNaN(secretNum)) {
-        setResult({ eligible: false, msg: 'Secret must be a number' });
-        return;
-      }
-      const proof = await generateMerkleProof(address, secretNum);
-      if (proof) {
-        setResult({ eligible: true, msg: 'You are on the allowlist!' });
-        setTimeout(() => onEligible(address, secretNum, proof), 800);
-      } else {
-        setResult({ eligible: false, msg: 'Address/secret combination not on allowlist.' });
-      }
+      const proofData = await api.proof.get(allowlist.id, addressIdx, secret);
+      setResult({ ok: true, msg: 'You are on the allowlist!' });
+      setTimeout(() => onEligible(addressIdx, secret), 600);
     } catch (e: any) {
-      setResult({ eligible: false, msg: e.message || 'Error checking eligibility' });
+      setResult({ ok: false, msg: e.message || 'Not eligible' });
     } finally {
       setChecking(false);
     }
@@ -38,21 +31,16 @@ export default function EligibilityCheck({ onEligible }: Props) {
   return (
     <div className="card">
       <h2>Check Eligibility</h2>
-      <p>Select your address index and enter your secret to prove allowlist membership.</p>
+      <p>Enter your address index and secret to verify you're on <strong>{allowlist.name}</strong>.</p>
 
       <div className="input-group">
         <label>Address Index</label>
-        <div className="address-select">
-          {Array.from({ length: 16 }, (_, i) => (
-            <button
-              key={i}
-              className={address === i ? 'selected' : ''}
-              onClick={() => { setAddress(i); setResult(null); }}
-            >
-              #{i}
-            </button>
-          ))}
-        </div>
+        <input
+          type="number"
+          min={0}
+          value={addressIdx}
+          onChange={e => { setAddressIdx(parseInt(e.target.value) || 0); setResult(null); }}
+        />
       </div>
 
       <div className="input-group">
@@ -61,19 +49,20 @@ export default function EligibilityCheck({ onEligible }: Props) {
           type="text"
           value={secret}
           onChange={e => { setSecret(e.target.value); setResult(null); }}
-          placeholder="Enter your secret (e.g. 42)"
+          placeholder="Enter your secret"
         />
       </div>
 
       {result && (
-        <div className={`status-box ${result.eligible ? 'success' : 'error'}`}>
-          {result.msg}
-        </div>
+        <div className={`status-box ${result.ok ? 'success' : 'error'}`}>{result.msg}</div>
       )}
 
-      <button className="btn btn-primary" onClick={handleCheck} disabled={checking}>
-        {checking ? <><span className="spinner" /> Checking…</> : 'Check Eligibility'}
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-ghost" onClick={onBack} style={{ flex: 1 }}>Back</button>
+        <button className="btn btn-primary" onClick={handleCheck} disabled={checking || !secret} style={{ flex: 2 }}>
+          {checking ? <><span className="spinner" /> Checking…</> : 'Check Eligibility'}
+        </button>
+      </div>
     </div>
   );
 }
