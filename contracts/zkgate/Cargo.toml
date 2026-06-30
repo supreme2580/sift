@@ -1,0 +1,19 @@
+[package]
+name = "zkgate"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soroban-sdk = { workspace = true, features = ["alloc"] }
+ultrahonk_soroban_verifier = { path = "../../crates/ultrahonk-soroban-verifier" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+
+[features]
+default = []
+std = []
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false

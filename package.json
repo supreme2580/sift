@@ -1,0 +1,16 @@
+{
+  "name": "zkgate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-Knowledge Private Allowlist for Stellar",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "circuit:compile": "cd circuits/eligibility && nargo compile",
+    "circuit:test": "cd circuits/eligibility && nargo test",
+    "generate:prover-data": "node scripts/generate_prover_data.mjs"
+  },
+  "dependencies": {
+    "@aztec/bb.js": "^0.87.0"
+  }
+}
