@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import basicSsl from '@vitejs/plugin-basic-ssl';
+import fs from 'fs';
 
 export default defineConfig({
-  plugins: [react(), basicSsl()],
+  plugins: [react()],
   optimizeDeps: {
     include: ['@aztec/bb.js'],
   },
@@ -11,7 +11,10 @@ export default defineConfig({
     format: 'es',
   },
   server: {
-    https: true,
+    https: {
+      key: fs.readFileSync('certs/key.pem'),
+      cert: fs.readFileSync('certs/cert.pem'),
+    },
     host: true,
     port: 5173,
   },
