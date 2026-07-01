@@ -1,20 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ZkAuthState } from '../state';
-import { getZkAuthState, subscribeToZkAuth, initializeState, setConnected, setDisconnected, setBalance } from '../state';
-import { deriveSecretFromKey, clearCachedSecret } from '../privy';
+import { getZkAuthState, subscribeToZkAuth, initializeState, setConnected, setDisconnected } from '../state';
+import { deriveSecretFromSeed } from '../seed';
+import { deriveKeypair } from '../banker';
 
 export interface UseZkAuthOptions {
   privateKey?: Uint8Array;
 }
 
 export interface UseZkAuthReturn extends ZkAuthState {
-  connect: () => Promise<void>;
+  identityAddress: string | null;
+  identitySecretKey: string | null;
+  connect: (seed: string) => Promise<void>;
   disconnect: () => void;
-  login: () => void;
 }
 
 export function useZkAuth(options?: UseZkAuthOptions): UseZkAuthReturn {
   const [state, setState] = useState<ZkAuthState | null>(getZkAuthState);
+
+  const keypair = useMemo(() => {
+    const s = state?.secret;
+    return s ? deriveKeypair(s) : null;
+  }, [state?.secret]);
+  const identityAddress = keypair?.publicKey ?? null;
+  const identitySecretKey = keypair?.secretKey ?? null;
 
   useEffect(() => {
     initializeState();
@@ -22,34 +31,36 @@ export function useZkAuth(options?: UseZkAuthOptions): UseZkAuthReturn {
     return subscribeToZkAuth(() => setState(getZkAuthState()));
   }, []);
 
-  const connect = useCallback(async () => {
+  useEffect(() => {
     if (options?.privateKey) {
-      const secret = await deriveSecretFromKey(options.privateKey);
-      setConnected(null, secret);
-    } else {
-      throw new Error('Privy connect not available in useZkAuth — use ZkAuthButton component or provide a privateKey option');
+      (async () => {
+        const { deriveSecretFromKey } = await import('../seed');
+        const secret = await deriveSecretFromKey(options.privateKey!);
+        setConnected(null, secret);
+      })();
     }
   }, [options?.privateKey]);
 
-  const disconnect = useCallback(() => {
-    clearCachedSecret();
-    setDisconnected();
+  const connect = useCallback(async (seed: string) => {
+    const secret = await deriveSecretFromSeed(seed);
+    setConnected(null, secret);
   }, []);
 
-  const login = useCallback(() => {
-    throw new Error('Login action not available here — use ZkAuthButton component');
+  const disconnect = useCallback(() => {
+    setDisconnected();
   }, []);
 
   return {
     ...(state || {
       connected: false,
-      privyUser: null,
+      user: null,
       secret: null,
       balance: BigInt(0),
       deposits: [],
     }),
+    identityAddress,
+    identitySecretKey,
     connect,
     disconnect,
-    login,
   };
 }

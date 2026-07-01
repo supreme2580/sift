@@ -43,7 +43,7 @@ impl ZkPay {
         env.storage().persistent().set(&commitment, &deposit);
     }
 
-    pub fn auth(
+    pub fn withdraw(
         env: Env,
         proof: Bytes,
         public_inputs: Bytes,

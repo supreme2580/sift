@@ -1,104 +1,129 @@
-# zkPay
+# zkAuth
 
-**Private address on Stellar.** Deposit XLM, withdraw anonymously using zero-knowledge proofs.
+**Private balance on Stellar.** Deposit XLM with a commitment, withdraw to any address with a zero-knowledge proof. The zkPay contract acts as a pool — no on-chain link between deposit and withdrawal.
 
-- **Privacy**: Deposit via burner wallet → withdraw to any address with ZK proof — no link between them
-- **Soroban contract**: UltraHonk proof verification on-chain
-- **No backend, no DB**: Everything runs in the browser via `@zkpay/sdk`
-
-## Quick start
-
-```bash
-# Install dependencies
-cd packages/zkpay && npm install
-cd ../../demo && npm install
-
-# Start demo
-npm run dev
-```
+- **Seed phrase → identity**: SHA256 hash, memory only, recoverable anywhere
+- **Deterministic Stellar account**: same seed = same address every time
+- **Zero-knowledge proofs**: UltraHonk (via Barretenberg) verified on-chain
+- **No backend, no DB, no setup**: everything runs in the browser
 
 ## How it works
 
-1. **Connect** — Login with Google/Discord/Email via Privy
-2. **Deposit** — SDK generates a burner wallet, you send XLM to it, SDK deposits into the zkPay contract and records your commitment
-3. **Withdraw** — SDK generates an UltraHonk proof that you know the secret for your commitment, submits to the contract, contract sends XLM to any address you choose
+```
+Seed phrase → SHA256 → identity secret (never stored)
+  → compute commitment = pedersen(secret, nonce)
+  → derive Stellar keypair (deterministic)
+
+1. Fund your identity address with XLM
+2. Deposit: atomic tx → contract records balance under your commitment
+3. Withdraw: generate ZK proof → contract verifies → sends XLM to any address
+```
+
+```
+Connect (password) → identity account derived (deterministic)
+                           |
+              ┌────────────┴────────────┐
+              ▼                         ▼
+      balance < 1 XLM           balance ≥ 1 XLM
+              |                         |
+              ▼                         ▼
+   [Activate Account]           [Deposit / Withdraw]
+   Shows identity address       ┌────────┴────────┐
+   "Send ≥ 2 XLM"               ▼                  ▼
+   (1 min balance           [Deposit]         [Withdraw]
+   + 1 for fees)            enter amount       enter amount
+              |             single atomic      + recipient
+         poll balance       tx: transfer       generate proof
+              |             + zkPay.deposit    submitWithdraw
+     when ≥ 1 XLM →                             (identity pays fee)
+     becomes "Deposit"
+
+- Identity account is derived from password (deterministic)
+- Address is only shown to user during activation
+- After activation, everything happens behind the scenes
+- No burner wallets, no address management
+```
+
+The circuit proves you know the secret for a given commitment without revealing it. Each proof consumes a nullifier (double-spend protection).
+
+## Demo
+
+```bash
+pnpm install
+cd demo && pnpm dev
+```
+
+1. Click "Connect with zkAuth" → enter a password
+2. Copy your identity address, send XLM to it
+3. Click "Deposit" — the SDK detects the payment and records it on-chain
+4. Click "Withdraw" — generates a ZK proof, submits to contract, XLM is sent to your chosen address
 
 ## Architecture
 
 ```
-              ┌─────────────────┐
-              │    zkPay SDK     │
-              │  (@zkpay/sdk)    │
-              │                  │
-Privy ───────►│  derive secret   │
-              │  compute hash    │
-              │  generate proof  │──► bb.js (UltraHonk)
-              │  submit tx       │──► Soroban contract
-              └─────────────────┘
-
-Soroban contract:
-  deposit(commitment, amount)  → record commitment
-  auth(proof, public_inputs, recipient) → verify proof, send XLM
-
-Noir circuit (circuits/zkpay/):
-  public:  commitment, nullifier
-  private: secret
-  proves:  hash(secret) == commitment
-           hash(commitment, secret) == nullifier
+Browser                          Soroban Testnet
+┌─────────────────────┐          ┌──────────────────┐
+│  @supreme2580/zkauth │          │   zkPay contract  │
+│                     │          │                   │
+│  deriveSecret       │   tx     │  deposit(comm,amt)│
+│  computeCommitment  │────────► │  withdraw(proof,  │
+│  generateProof      │          │    inputs, recip) │
+│  submitDeposit      │◄──────── │                   │
+│  submitWithdraw     │   events │                   │
+└─────────────────────┘          └──────────────────┘
+        │                              │
+        │  POST /api/prove              │  native_token
+        ▼                              ▼
+   bb (UltraHonk)              XLM Pool
 ```
+
+## Packages
+
+| Package | Location |
+|---|---|
+| `@supreme2580/zkauth` | `packages/sdk/` |
+| `demo` | `demo/` |
 
 ## Contract
 
 ```bash
 cd contracts/zkpay
-cargo build --target wasm32-unknown-unknown --release
+cargo build --target wasm32v1-none --release
+
+# Deploy (VK in hex)
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/zkpay.wasm \
+  --source admin \
+  --network testnet \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  -- \
+  --vk-bytes "$(xxd -p packages/sdk/circuits/vk.bin | tr -d '\n')" \
+  --native-token CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
 ```
 
 ## Circuit
 
 ```bash
-cd circuits/zkpay
-nargo compile
+cd circuits/zkpay && nargo compile
 ```
 
-## SDK
+The circuit proves: `pedersen(secret, nonce) = commitment` AND `pedersen(commitment, secret, nonce) = nullifier`.
+
+## SDK Build
 
 ```bash
-cd packages/zkpay
-npm install
-npm run build
+cd packages/sdk
+pnpm build
 ```
 
-## Deploy
+## Contract Interface
 
-```bash
-# Set env vars
-export STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-export STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
-
-# Build contract WASM
-cd contracts/zkpay
-cargo build --target wasm32v1-none --release
-
-# Generate VK using the prove command (--write_vk outputs correct 1760-byte format)
-cd ../..
-bb prove -s ultra_honk --oracle_hash keccak \
-  -b demo/public/circuit.json \
-  -w <path-to-witness> \
-  -o /tmp/vk \
-  --write_vk
-
-# Deploy + initialize in one step (hex-encode the VK)
-stellar contract deploy \
-  --wasm contracts/zkpay/target/wasm32v1-none/release/zkpay.wasm \
-  --source admin-key \
-  --network testnet \
-  --network-passphrase "$STELLAR_NETWORK_PASSPHRASE" \
-  --alias zkpay \
-  -- \
-  --vk-bytes "$(xxd -p /tmp/vk/vk | tr -d '\n')" \
-  --native-token CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
-```
+| Function | Params | Description |
+|---|---|---|
+| `deposit` | `commitment, amount` | Record balance under a commitment |
+| `withdraw` | `proof, public_inputs, recipient` | Verify ZK proof, send balance to recipient |
+| `commitment_exists` | `commitment` | Check if commitment has a deposit |
+| `nullifier_used` | `nullifier` | Check if nullifier was already consumed |
 
 ## License
 

@@ -15,12 +15,12 @@ export { ZkAuthButton } from './components';
 export type { ZkAuthButtonProps } from './components';
 
 // Contract
-export { submitDeposit, submitAuth, checkNullifierUsed, checkCommitmentExists, getContractConfig } from './contract';
+export { submitDeposit, submitWithdraw, checkNullifierUsed, checkCommitmentExists, getContractConfig } from './contract';
 export type { TxResult, ContractConfig } from './contract';
 
-// Privy
-export { deriveSecretFromKey, deriveSecretFromPrivyViaApi, clearCachedSecret } from './privy';
+// Seed phrase
+export { deriveSecretFromSeed, deriveSecretFromKey, clearCachedSecret } from './seed';
 
 // Banker
-export { generateBurner } from './banker';
+export { generateBurner, deriveKeypair } from './banker';
 export type { BurnerWallet } from './banker';

@@ -1,14 +1,13 @@
-import { useState as reactUseState, useCallback, useRef } from 'react';
-
 export interface DepositInfo {
   commitment: string;
   amount: bigint;
+  nonce: string;
   claimed: boolean;
 }
 
 export interface ZkAuthState {
   connected: boolean;
-  privyUser: any | null;
+  user: { seed?: string } | null;
   secret: Uint8Array | null;
   balance: bigint;
   deposits: DepositInfo[];
@@ -39,7 +38,7 @@ export async function initializeState() {
   if (stateRef.current) return;
   stateRef.current = {
     connected: false,
-    privyUser: null,
+    user: null,
     secret: null,
     balance: BigInt(0),
     deposits: [],
@@ -47,20 +46,29 @@ export async function initializeState() {
   notify();
 }
 
-export function setConnected(privyUser: any, secret: Uint8Array) {
+export function setConnected(user: any, secret: Uint8Array) {
   if (!stateRef.current) return;
-  stateRef.current = { ...stateRef.current, connected: true, privyUser, secret };
+  stateRef.current = { ...stateRef.current, connected: true, user, secret };
   notify();
 }
 
 export function setDisconnected() {
   if (!stateRef.current) return;
-  stateRef.current = { ...stateRef.current, connected: false, privyUser: null, secret: null };
+  stateRef.current = { ...stateRef.current, connected: false, user: null, secret: null };
   notify();
 }
 
 export function setBalance(balance: bigint) {
   if (!stateRef.current) return;
   stateRef.current = { ...stateRef.current, balance };
+  notify();
+}
+
+export function addDeposit(deposit: DepositInfo) {
+  if (!stateRef.current) return;
+  stateRef.current = {
+    ...stateRef.current,
+    deposits: [...stateRef.current.deposits, deposit],
+  };
   notify();
 }

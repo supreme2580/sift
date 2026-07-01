@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
 
 export async function POST(req: NextRequest) {
@@ -23,13 +23,40 @@ export async function POST(req: NextRequest) {
     const outDir = join(tmpDir, 'out');
     const bbPath = '/Users/victoromorogbe/.bb/bb';
 
+    // Use fields-only output to avoid bb's binary header getting in the way
+    // bb writes proof_fields.json with 456 hex strings and public_inputs_fields.json with 18 hex strings
     execSync(
-      `"${bbPath}" prove -s ultra_honk --oracle_hash keccak --write_vk -b "${circuitTmpPath}" -w "${witnessPath}" -o "${outDir}"`,
+      `"${bbPath}" prove -s ultra_honk --oracle_hash keccak --honk_recursion 1 --output_format fields -b "${circuitTmpPath}" -w "${witnessPath}" -o "${outDir}"`,
       { timeout: 300_000, stdio: 'pipe' },
     );
 
-    const proof = readFileSync(join(outDir, 'proof'));
-    const publicInputs = readFileSync(join(outDir, 'public_inputs'));
+    const outFiles = readdirSync(outDir);
+    console.log('[zkPay-prove] Output files:', outFiles);
+
+    const proofFieldsFile = outFiles.find(f => f.startsWith('proof_') && f.endsWith('.json'));
+    const piFieldsFile = outFiles.find(f => f.startsWith('public_inputs_') && f.endsWith('.json'));
+    if (!proofFieldsFile || !piFieldsFile) {
+      throw new Error(`Expected proof_fields.json and public_inputs_fields.json, got: ${outFiles.join(', ')}`);
+    }
+
+    // Parse JSON array of hex Fr strings → concatenated 32-byte BE field elements
+    const fieldsToBytes = (data: string[]): Buffer =>
+      Buffer.concat(
+        data.map((f: string) => {
+          const hex = f.startsWith('0x') ? f.slice(2) : f;
+          return Buffer.from(hex.padStart(64, '0'), 'hex');
+        })
+      );
+
+    const proofFields: string[] = JSON.parse(readFileSync(join(outDir, proofFieldsFile), 'utf8'));
+    const piFields: string[] = JSON.parse(readFileSync(join(outDir, piFieldsFile), 'utf8'));
+
+    // proof_fields.json = 456 Fr → 456 × 32 = 14,592 bytes = PROOF_BYTES
+    const proof = fieldsToBytes(proofFields);
+
+    // public_inputs includes pairing-point accumulator (16 Fr) after the user fields;
+    // contract expects only the first 2 Fr (commitment + nullifier) = 64 bytes
+    const publicInputs = fieldsToBytes(piFields.slice(0, 2));
 
     return NextResponse.json({
       proof: proof.toString('base64'),

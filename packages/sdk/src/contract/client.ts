@@ -5,6 +5,18 @@ export { getContractConfig } from './config';
 
 const SIM_ACCOUNT = new Account(Keypair.random().publicKey(), '0');
 
+async function getAccountWithRetry(server: rpc.Server, address: string, retries = 10, delayMs = 1500): Promise<Account> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await server.getAccount(address);
+    } catch {
+      if (i === retries - 1) throw new Error(`Account not found: ${address}`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw new Error(`Account not found: ${address}`);
+}
+
 export interface TxResult {
   hash: string;
   url: string;
@@ -48,33 +60,33 @@ async function prepareAndSend(
 }
 
 export async function submitDeposit(
-  burnerSecret: string,
+  secretKey: string,
   commitment: Uint8Array,
   amount: bigint,
 ): Promise<TxResult> {
   const config = getContractConfig();
   const server = new rpc.Server(config.rpcUrl);
-  const burnerKp = Keypair.fromSecret(burnerSecret);
+  const kp = Keypair.fromSecret(secretKey);
   const contract = new Contract(config.contractId);
   const tokenContract = new Contract(config.nativeTokenId);
+  const userAddress = kp.publicKey();
 
-  const account = await server.getAccount(burnerKp.publicKey());
-
-  const transferTx = new TransactionBuilder(account, {
+  // Soroban allows only 1 op per tx — split into transfer then deposit
+  const account1 = await getAccountWithRetry(server, userAddress);
+  const tx1 = new TransactionBuilder(account1, {
     fee: '1000',
     networkPassphrase: config.networkPassphrase,
   })
     .addOperation(tokenContract.call('transfer',
-      xdr.ScVal.scvAddress(Address.fromString(burnerKp.publicKey()).toScAddress()),
+      xdr.ScVal.scvAddress(Address.fromString(userAddress).toScAddress()),
       xdr.ScVal.scvAddress(Address.fromString(config.contractId).toScAddress()),
       nativeToScVal(amount, { type: 'i128' }),
     ))
     .setTimeout(30);
+  const result1 = await prepareAndSend(server, tx1, kp, config.networkPassphrase);
 
-  await prepareAndSend(server, transferTx, burnerKp, config.networkPassphrase);
-
-  const account2 = await server.getAccount(burnerKp.publicKey());
-  const depositTx = new TransactionBuilder(account2, {
+  const account2 = await getAccountWithRetry(server, userAddress);
+  const tx2 = new TransactionBuilder(account2, {
     fee: '1000',
     networkPassphrase: config.networkPassphrase,
   })
@@ -83,11 +95,10 @@ export async function submitDeposit(
       nativeToScVal(amount, { type: 'i128' }),
     ))
     .setTimeout(30);
-
-  return prepareAndSend(server, depositTx, burnerKp, config.networkPassphrase);
+  return prepareAndSend(server, tx2, kp, config.networkPassphrase);
 }
 
-export async function submitAuth(
+export async function submitWithdraw(
   proof: Uint8Array,
   publicInputs: Uint8Array,
   recipient: string,
@@ -99,12 +110,12 @@ export async function submitAuth(
   const contract = new Contract(config.contractId);
   const recipientAddr = Address.fromString(recipient);
 
-  const account = await server.getAccount(signer.publicKey());
+  const account = await getAccountWithRetry(server, signer.publicKey());
   const tx = new TransactionBuilder(account, {
     fee: '1000',
     networkPassphrase: config.networkPassphrase,
   })
-    .addOperation(contract.call('auth',
+    .addOperation(contract.call('withdraw',
       xdr.ScVal.scvBytes(Buffer.from(proof)),
       xdr.ScVal.scvBytes(Buffer.from(publicInputs)),
       xdr.ScVal.scvAddress(recipientAddr.toScAddress()),
