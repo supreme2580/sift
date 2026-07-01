@@ -1,17 +1,22 @@
 {
-  "name": "@zkauth/sdk",
+  "name": "@supreme2580/sdk",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./circuit.json": "./circuits/identity.json"
+    ".": "./dist/index.js",
+    "./circuit.json": "./dist/circuit.json"
   },
+  "files": [
+    "dist/",
+    "circuits/"
+  ],
   "scripts": {
-    "build": "tsc",
-    "compile-circuit": "cd circuits/identity && nargo compile --force && cp target/zkpay.json ../identity.json"
+    "build": "tsc && cp circuits/identity.json dist/circuit.json",
+    "compile-circuit": "cd circuits/identity && nargo compile --force && cp target/zkpay.json ../identity.json",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@aztec/bb.js": "^4.4.0",

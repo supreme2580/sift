@@ -1,6 +1,6 @@
 'use client';
 
-import { ZkAuthButton, useZkAuth } from '@zkauth/sdk';
+import { ZkAuthButton, useZkAuth } from '@supreme2580/sdk';
 
 function BalanceDisplay() {
   const { balance, connected } = useZkAuth();

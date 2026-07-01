@@ -1,6 +1,6 @@
 'use client';
 
-import { ZkAuthProvider } from '@zkauth/sdk';
+import { ZkAuthProvider } from '@supreme2580/sdk';
 import type { ReactNode } from 'react';
 
 export function Providers({ children }: { children: ReactNode }) {

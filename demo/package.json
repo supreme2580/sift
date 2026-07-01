@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@zkauth/sdk": "workspace:*",
+    "@supreme2580/sdk": "workspace:*",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
