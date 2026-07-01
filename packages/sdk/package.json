@@ -7,6 +7,10 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
     "./circuit.json": "./dist/circuit.json"
   },
   "files": [
@@ -22,6 +26,7 @@
     "@aztec/bb.js": "^4.4.0",
     "@farcaster/mini-app-solana": "^2.0.0",
     "@noir-lang/noir_js": "1.0.0-beta.9",
+    "@privy-io/node": "^0.24.0",
     "@privy-io/react-auth": "^3.32.2",
     "@stellar/stellar-sdk": "^16.0.1",
     "@stripe/crypto": "^1.1.0",

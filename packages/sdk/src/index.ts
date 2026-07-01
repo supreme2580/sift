@@ -19,7 +19,7 @@ export { submitDeposit, submitAuth, checkNullifierUsed, checkCommitmentExists, g
 export type { TxResult, ContractConfig } from './contract';
 
 // Privy
-export { deriveSecretFromKey, deriveSecretFromPrivy, clearCachedSecret } from './privy';
+export { deriveSecretFromKey, deriveSecretFromPrivyViaApi, clearCachedSecret } from './privy';
 
 // Banker
 export { generateBurner } from './banker';

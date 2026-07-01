@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ZkAuthState } from '../state';
 import { getZkAuthState, subscribeToZkAuth, initializeState, setConnected, setDisconnected, setBalance } from '../state';
-import { deriveSecretFromKey, deriveSecretFromPrivy, clearCachedSecret } from '../privy';
+import { deriveSecretFromKey, clearCachedSecret } from '../privy';
 
 export interface UseZkAuthOptions {
   privateKey?: Uint8Array;

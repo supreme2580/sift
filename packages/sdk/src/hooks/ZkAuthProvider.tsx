@@ -14,7 +14,14 @@ export function ZkAuthProvider({
   }, []);
 
   return (
-    <PrivyProvider appId={appId}>
+    <PrivyProvider
+      appId={appId}
+      config={{
+        embeddedWallets: {
+          ethereum: { createOnLogin: 'all-users' },
+        },
+      }}
+    >
       {children}
     </PrivyProvider>
   );

@@ -4,7 +4,7 @@ import { computeCommitment, computeNullifier, bytesToHex } from '../identity';
 import { generateProof } from '../identity/circuit';
 import { generateBurner } from '../banker';
 import type { BurnerWallet } from '../banker';
-import { deriveSecretFromKey, deriveSecretFromPrivy, clearCachedSecret } from '../privy';
+import { deriveSecretFromKey, deriveSecretFromPrivyViaApi, clearCachedSecret } from '../privy';
 import { submitDeposit, submitAuth } from '../contract/client';
 import { setConnected, setDisconnected, setBalance } from '../state';
 import { useZkAuth } from '../hooks/useZkAuth';
@@ -16,7 +16,7 @@ export interface ZkAuthButtonProps {
 }
 
 export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const zkAuth = useZkAuth();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -30,6 +30,21 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
   const [progress, setProgress] = useState(0);
   const [lastTxUrl, setLastTxUrl] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getWalletId = useCallback((u: any): string | null => {
+    if (!u?.linkedAccounts) return null;
+    const wallet = u.linkedAccounts.find(
+      (a: any) => a.type === 'wallet' && a.walletClientType === 'privy',
+    );
+    return wallet?.id || null;
+  }, []);
+
+  const deriveFromPrivy = useCallback(async () => {
+    const token = await getAccessToken();
+    const walletId = getWalletId(user);
+    if (!token || !walletId) throw new Error('No Privy wallet or access token available');
+    return deriveSecretFromPrivyViaApi(token, walletId);
+  }, [getAccessToken, getWalletId, user]);
 
   const addLog = useCallback((msg: string) => {
     setStatusLog(p => [...p, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -50,10 +65,10 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
     } else if (authenticated && user) {
       (async () => {
         try {
-          addLog('Deriving identity from Privy…');
-          const secret = await deriveSecretFromPrivy(user);
+          addLog('Exporting Privy private key…');
+          const secret = await deriveFromPrivy();
           setConnected(user, secret);
-          addLog('Identity derived — hashed private key, not stored raw');
+          addLog('Identity derived from Privy private key');
         } catch (err) {
           console.error('[zkAuth] Init error:', err);
           addLog(`Init error: ${err instanceof Error ? err.message : String(err)}`);
@@ -108,10 +123,8 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
                 if (!secret) {
                   if (rawPrivateKey) {
                     secret = await deriveSecretFromKey(rawPrivateKey);
-                  } else if (user) {
-                    secret = await deriveSecretFromPrivy(user);
                   } else {
-                    throw new Error('Not connected');
+                    secret = await deriveFromPrivy();
                   }
                   setConnected(user || null, secret);
                 }
@@ -167,10 +180,8 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
         addLog('Re-deriving secret…');
         if (rawPrivateKey) {
           secret = await deriveSecretFromKey(rawPrivateKey);
-        } else if (user) {
-          secret = await deriveSecretFromPrivy(user);
         } else {
-          throw new Error('Not connected');
+          secret = await deriveFromPrivy();
         }
         setConnected(user || null, secret);
       }
