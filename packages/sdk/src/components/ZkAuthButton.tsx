@@ -89,7 +89,20 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
     }
   }, [modalOpen]);
 
-  const handleLogin = () => login();
+  const handleLogin = async () => {
+    if (authenticated && user) {
+      try {
+        addLog('Deriving identity from Privy…');
+        const secret = await deriveFromPrivy();
+        setConnected(user, secret);
+        addLog('Identity derived from Privy private key');
+      } catch (err) {
+        addLog(`Init error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      login();
+    }
+  };
   const handleLogout = () => { logout(); clearCachedSecret(); setDisconnected(); setModalOpen(false); };
 
   const handleDeposit = async () => {
