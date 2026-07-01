@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>zkPay Demo</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+      :root {
+        --bg: #050508;
+        --surface: #0c0c14;
+        --surface-2: #141420;
+        --surface-3: #1c1c2e;
+        --border: rgba(255,255,255,0.06);
+        --border-hover: rgba(255,255,255,0.12);
+        --text: #ededef;
+        --text-2: #88889a;
+        --text-3: #4a4a5a;
+        --accent: #6366f1;
+        --accent-2: #8b5cf6;
+        --accent-glow: rgba(99,102,241,0.12);
+        --green: #22c55e;
+        --green-bg: rgba(34,197,94,0.08);
+        --red: #ef4444;
+        --red-bg: rgba(239,68,68,0.08);
+        --radius: 14px;
+        --radius-sm: 10px;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 60% 40% at 50% 0%, rgba(99,102,241,0.07) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 40% at 20% 80%, rgba(139,92,246,0.04) 0%, transparent 60%),
+          radial-gradient(ellipse 40% 40% at 80% 80%, rgba(99,102,241,0.03) 0%, transparent 60%);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .app {
+        text-align: center;
+        padding: 3rem 2rem;
+        max-width: 420px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .logo-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        margin-bottom: 1.5rem;
+        font-size: 22px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: 0 8px 32px var(--accent-glow);
+        letter-spacing: -0.02em;
+        user-select: none;
+      }
+
+      h1 {
+        font-size: 1.65rem;
+        font-weight: 800;
+        margin-bottom: 0.4rem;
+        letter-spacing: -0.03em;
+        background: linear-gradient(135deg, #fff 40%, var(--accent-2) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .subtitle {
+        color: var(--text-2);
+        margin-bottom: 2.5rem;
+        font-size: 13.5px;
+        line-height: 1.7;
+        font-weight: 400;
+      }
+
+      /* ── Buttons ── */
+
+      .zkpay-btn {
+        padding: 14px 36px;
+        border-radius: var(--radius);
+        border: none;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+        font-family: inherit;
+        letter-spacing: 0.01em;
+        position: relative;
+        outline: none;
+      }
+
+      .zkpay-btn:hover { transform: translateY(-2px); }
+      .zkpay-btn:active { transform: scale(0.98); }
+      .zkpay-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+      .zkpay-btn-loading {
+        background: var(--surface-2);
+        color: var(--text-3);
+        cursor: wait;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+      .zkpay-btn-login {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #fff;
+        box-shadow: 0 4px 24px var(--accent-glow);
+        overflow: hidden;
+      }
+
+      .zkpay-btn-login::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+        transform: translateX(-100%);
+        transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
+      }
+
+      .zkpay-btn-login:hover::before { transform: translateX(100%); }
+      .zkpay-btn-login:hover { box-shadow: 0 8px 32px var(--accent-glow); }
+
+      .zkpay-btn-connected {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        backdrop-filter: blur(12px);
+      }
+
+      .zkpay-btn-connected:hover {
+        border-color: rgba(255,255,255,0.15);
+        box-shadow: 0 0 0 1px var(--accent-glow);
+      }
+
+      /* ── Modal ── */
+
+      .zkpay-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.75);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(16px) saturate(1.4);
+        animation: fadeIn 0.2s ease;
+      }
+
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      .zkpay-modal {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 0;
+        width: 400px;
+        max-width: 90vw;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow:
+          0 32px 80px rgba(0,0,0,0.6),
+          0 0 0 1px rgba(99,102,241,0.06),
+          inset 0 1px 0 rgba(255,255,255,0.04);
+        animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1);
+      }
+
+      .zkpay-modal::-webkit-scrollbar { width: 4px; }
+      .zkpay-modal::-webkit-scrollbar-track { background: transparent; }
+      .zkpay-modal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+      .zkpay-modal-inner { padding: 28px; }
+
+      .zkpay-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+      }
+
+      .zkpay-modal-header h2 {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.02em;
+      }
+
+      .zkpay-close {
+        background: none;
+        border: none;
+        color: var(--text-3);
+        font-size: 16px;
+        cursor: pointer;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        transition: all 0.15s;
+      }
+
+      .zkpay-close:hover { background: var(--surface-2); color: var(--text); }
+
+      /* ── Balance ── */
+
+      .zkpay-balance-display {
+        background: linear-gradient(135deg, var(--surface-2), var(--surface));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 28px 24px;
+        margin-bottom: 24px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .zkpay-balance-display::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(ellipse at 50% 0%, var(--accent-glow) 0%, transparent 50%);
+        pointer-events: none;
+      }
+
+      .zkpay-balance-label {
+        display: block;
+        font-size: 10.5px;
+        color: var(--text-3);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-weight: 600;
+        position: relative;
+      }
+
+      .zkpay-balance-value {
+        font-size: 38px;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.04em;
+        font-variant-numeric: tabular-nums;
+        position: relative;
+      }
+
+      .zkpay-balance-ticker {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-3);
+        letter-spacing: 0;
+        margin-left: 4px;
+      }
+
+      .zkpay-balance-display .zkpay-balance-usd {
+        display: block;
+        font-size: 12px;
+        color: var(--text-3);
+        margin-top: 6px;
+        position: relative;
+        font-weight: 500;
+      }
+
+      /* ── Actions ── */
+
+      .zkpay-actions { display: flex; gap: 10px; margin-bottom: 24px; }
+
+      .zkpay-action-btn {
+        flex: 1;
+        padding: 14px;
+        border-radius: var(--radius);
+        border: none;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+        font-family: inherit;
+        letter-spacing: 0.01em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .zkpay-action-btn:disabled { opacity: 0.25; cursor: not-allowed; transform: none; }
+      .zkpay-action-btn:active:not(:disabled) { transform: scale(0.97); }
+
+      .zkpay-action-deposit {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 2px 12px var(--accent-glow);
+      }
+
+      .zkpay-action-deposit:hover:not(:disabled) {
+        background: #5558e6;
+        box-shadow: 0 6px 24px var(--accent-glow);
+        transform: translateY(-1px);
+      }
+
+      .zkpay-action-withdraw {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .zkpay-action-withdraw:hover:not(:disabled) {
+        background: var(--surface-2);
+        border-color: rgba(255,255,255,0.12);
+      }
+
+      /* ── Inputs ── */
+
+      .zkpay-input-wrap { position: relative; margin-bottom: 10px; }
+
+      .zkpay-input-wrap:last-of-type { margin-bottom: 16px; }
+
+      .zkpay-input {
+        width: 100%;
+        padding: 14px 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text);
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      }
+
+      .zkpay-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+        background: rgba(99,102,241,0.03);
+      }
+
+      .zkpay-input::placeholder { color: var(--text-3); }
+
+      .zkpay-input-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin-bottom: 6px;
+      }
+
+      /* ── Links / Text ── */
+
+      .zkpay-btn-link {
+        background: none;
+        border: none;
+        color: var(--text-3);
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        font-weight: 500;
+        padding: 6px 0;
+        transition: color 0.15s;
+      }
+
+      .zkpay-btn-link:hover { color: var(--text); }
+
+      .zkpay-btn-logout {
+        width: 100%;
+        padding: 12px;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-3);
+        border-radius: var(--radius);
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .zkpay-btn-logout:hover {
+        color: var(--red);
+        border-color: rgba(239,68,68,0.25);
+        background: var(--red-bg);
+      }
+
+      /* ── Burner ── */
+
+      .zkpay-burner-section { margin: 18px 0; text-align: center; }
+
+      .zkpay-burner-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 6px;
+      }
+
+      .zkpay-burner-desc {
+        color: var(--text-2);
+        font-size: 13px;
+        margin-bottom: 14px;
+        line-height: 1.6;
+      }
+
+      .zkpay-burner-desc strong { color: var(--text); }
+
+      .zkpay-address {
+        display: block;
+        padding: 14px 16px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-family: 'JetBrains Mono', 'SF Mono', monospace;
+        font-size: 11.5px;
+        word-break: break-all;
+        margin: 12px 0;
+        color: var(--accent-2);
+        letter-spacing: 0.02em;
+        user-select: all;
+        cursor: copy;
+        transition: border-color 0.2s, background 0.2s;
+        line-height: 1.7;
+      }
+
+      .zkpay-address:hover {
+        border-color: rgba(139,92,246,0.3);
+        background: rgba(99,102,241,0.03);
+      }
+
+      .zkpay-address:active { background: rgba(99,102,241,0.06); }
+
+      .zkpay-copy-btn {
+        background: none;
+        border: 1px solid var(--border);
+        color: var(--text-2);
+        cursor: pointer;
+        font-size: 12px;
+        font-family: inherit;
+        font-weight: 500;
+        padding: 8px 18px;
+        border-radius: var(--radius-sm);
+        transition: all 0.2s;
+      }
+
+      .zkpay-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+      /* ── Progress ── */
+
+      .zkpay-progress-section { margin: 20px 0; }
+
+      .zkpay-progress-bar {
+        width: 100%;
+        height: 4px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .zkpay-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        border-radius: 2px;
+        transition: width 0.5s cubic-bezier(0.16,1,0.3,1);
+      }
+
+      .zkpay-status-msg {
+        color: var(--text-2);
+        font-size: 13px;
+        margin-bottom: 12px;
+        text-align: center;
+        font-weight: 500;
+      }
+
+      /* ── Log ── */
+
+      .zkpay-log {
+        max-height: 170px;
+        overflow-y: auto;
+        background: var(--bg);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: var(--radius-sm);
+        padding: 12px 14px;
+        margin-top: 14px;
+      }
+
+      .zkpay-log::-webkit-scrollbar { width: 3px; }
+      .zkpay-log::-webkit-scrollbar-track { background: transparent; }
+      .zkpay-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+      .zkpay-log-line {
+        font-family: 'JetBrains Mono', 'SF Mono', monospace;
+        font-size: 10.5px;
+        color: var(--text-3);
+        padding: 4px 0;
+        line-height: 1.5;
+        border-bottom: 1px solid rgba(255,255,255,0.02);
+      }
+
+      .zkpay-log-line:last-child { border-bottom: none; }
+
+      /* ── Misc ── */
+
+      .zkpay-spacer { height: 6px; }
+      .zkpay-flex { display: flex; align-items: center; gap: 10px; }
+      .zkpay-flex-center { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

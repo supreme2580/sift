@@ -1,7 +1,0 @@
-allowBuilds:
-  '@reown/appkit': true
-  bufferutil: true
-  esbuild: true
-  keccak: true
-  msgpackr-extract: true
-  utf-8-validate: true

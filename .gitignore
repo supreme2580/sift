@@ -2,16 +2,12 @@ node_modules
 dist
 target
 .env
-.contract_id
 *.log
 .DS_Store
 circuits/*/target
 circuits/*/Prover.toml
 circuits/*/Verifier.toml
-frontend/dist
 __pycache__
 *.swp
 *.swo
-
-# API database
-api/data/
+demo/dist
