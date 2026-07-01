@@ -8,7 +8,7 @@ importers:
 
   demo:
     dependencies:
-      '@zkauth/sdk':
+      '@supreme2580/zkauth':
         specifier: workspace:*
         version: link:../packages/sdk
       next:
