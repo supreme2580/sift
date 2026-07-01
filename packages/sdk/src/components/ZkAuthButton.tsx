@@ -3,7 +3,7 @@ import { computeCommitment, computeNullifier, bytesToHex, hexToBytes } from '../
 import { generateProof } from '../identity/circuit';
 import { deriveSecretFromSeed, deriveSecretFromKey } from '../seed';
 import { submitDeposit, submitWithdraw } from '../contract/client';
-import { setConnected, setDisconnected, setBalance, addDeposit } from '../state';
+import { setConnected, setDisconnected, setBalance, addDeposit, claimDeposit } from '../state';
 import { useZkAuth } from '../hooks/useZkAuth';
 
 type ModalView = 'seed' | 'main' | 'activate' | 'deposit-input' | 'deposit-wait' | 'deposit-progress' | 'withdraw-input' | 'withdraw-progress' | 'success';
@@ -12,6 +12,7 @@ async function checkAccountBalance(address: string): Promise<number> {
   try {
     const resp = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
     if (resp.status === 404) return 0;
+    if (!resp.ok) throw new Error(`Horizon ${resp.status}`);
     const data = await resp.json();
     const xlm = data.balances?.find((b: any) => b.asset_type === 'native');
     return parseFloat(xlm?.balance || '0');
@@ -48,6 +49,13 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
   const addLog = useCallback((msg: string) => {
     setStatusLog(p => [...p, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   }, []);
+
+  const refreshBalance = useCallback(async () => {
+    if (zkAuth.identityAddress) {
+      const bal = await checkAccountBalance(zkAuth.identityAddress);
+      setIdentityBalance(bal);
+    }
+  }, [zkAuth.identityAddress]);
 
   const clearPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -91,6 +99,14 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
     if (modalOpen && (modalView === 'main' || modalView === 'deposit-input') && zkAuth.identityAddress) {
       checkAccountBalance(zkAuth.identityAddress).then(b => setIdentityBalance(b));
     }
+  }, [modalOpen, modalView, zkAuth.identityAddress]);
+
+  useEffect(() => {
+    if (!modalOpen || modalView !== 'main' || !zkAuth.identityAddress) return;
+    const id = setInterval(() => {
+      checkAccountBalance(zkAuth.identityAddress!).then(b => setIdentityBalance(b));
+    }, 4000);
+    return () => clearInterval(id);
   }, [modalOpen, modalView, zkAuth.identityAddress]);
 
   const getSecret = useCallback(async (): Promise<Uint8Array> => {
@@ -188,6 +204,8 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
       setProgress(100);
       setStatusMsg('Deposit complete!');
       addLog('Commitment recorded on-chain');
+      setDepositAmount('');
+      refreshBalance();
       setModalView('success');
     } catch (e: any) {
       addLog(`Deposit error: ${e.message}`);
@@ -195,20 +213,17 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
     } finally {
       isDepositingRef.current = false;
     }
-  }, [depositAmount, zkAuth.identitySecretKey, zkAuth.balance, getSecret, addLog]);
+  }, [depositAmount, zkAuth.identitySecretKey, zkAuth.balance, getSecret, addLog, refreshBalance]);
 
   const handleDepositIntent = () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
 
-    const fee = 0.5;
-    const reserve = 1;
-    const totalNeeded = amount + reserve + fee;
     depositAmountRef.current = amount;
-    if (identityBalance >= totalNeeded) {
+    if (identityBalance >= amount) {
       handleDeposit();
     } else {
-      depositTargetRef.current = totalNeeded;
+      depositTargetRef.current = amount;
       setModalView('deposit-wait');
 
       clearPolling();
@@ -236,7 +251,7 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
     try {
       const secret = await getSecret();
 
-      const unclaimed = zkAuth.deposits.find(d => !d.claimed);
+      const unclaimed = [...zkAuth.deposits].reverse().find(d => !d.claimed);
       if (!unclaimed) {
         throw new Error('No unclaimed deposit found. Deposit first.');
       }
@@ -263,7 +278,11 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
       setLastTxUrl(txResult.url);
       addLog(`Withdrew ${amount} XLM → ${recipientAddress}`);
 
+      claimDeposit(unclaimed.commitment);
       setBalance(zkAuth.balance - BigInt(Math.floor(amount * 1e7)));
+      setWithdrawAmount('');
+      setRecipientAddress('');
+      refreshBalance();
       setProgress(100);
       setStatusMsg('Withdrawal complete!');
       setModalView('success');
@@ -304,13 +323,14 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
                   <div className="zkauth-input-wrap">
                     <label className="zkauth-input-label">Password</label>
                     <input
-                      type="password"
+                      type="text"
                       placeholder="Enter your password…"
                       value={seedInput}
                       onChange={e => setSeedInput(e.target.value)}
-                      className="zkauth-input"
+                      className="zkauth-input zkauth-input-masked"
                       onKeyDown={e => { if (e.key === 'Enter') handleConnect(); }}
                       autoFocus
+                      autoComplete="off"
                     />
                   </div>
                   <div className="zkauth-spacer" />
@@ -403,7 +423,7 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
                     <button onClick={() => setModalView('main')} className="zkauth-close">✕</button>
                   </div>
                   <p className="zkauth-description">
-                    Available: <strong>{identityBalance.toFixed(4)} XLM</strong> &middot; Reserve: 1 XLM
+                    Available: <strong>{identityBalance.toFixed(4)} XLM</strong>
                   </p>
                   <div className="zkauth-input-wrap">
                     <label className="zkauth-input-label">Amount</label>
@@ -426,31 +446,15 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
                   {(() => {
                     const target = depositTargetRef.current;
                     const deposit = depositAmountRef.current;
-                    const reserve = 1;
-                    const fee = 0.5;
                     return (
                       <>
                         <div className="zkauth-modal-header">
-                          <h2>Deposit {target.toFixed(1)} XLM</h2>
+                          <h2>Deposit {deposit.toFixed(1)} XLM</h2>
                           <button onClick={() => { clearPolling(); setModalView('main'); }} className="zkauth-close">✕</button>
                         </div>
                         <p className="zkauth-description">
                           Send <strong>{target.toFixed(1)} XLM</strong> to your identity address to fund this deposit.
                         </p>
-                        <div className="zkauth-balances" style={{ marginBottom: 16 }}>
-                          <div className="zkauth-balance-card">
-                            <span className="zkauth-balance-card-label">Deposit</span>
-                            <span className="zkauth-balance-card-value">{deposit.toFixed(1)}</span>
-                          </div>
-                          <div className="zkauth-balance-card">
-                            <span className="zkauth-balance-card-label">Min Bal</span>
-                            <span className="zkauth-balance-card-value">{reserve.toFixed(1)}</span>
-                          </div>
-                          <div className="zkauth-balance-card">
-                            <span className="zkauth-balance-card-label">Fee</span>
-                            <span className="zkauth-balance-card-value">{fee.toFixed(1)}</span>
-                          </div>
-                        </div>
                         {zkAuth.identityAddress && (
                           <code className="zkauth-wait-address">{zkAuth.identityAddress}</code>
                         )}
@@ -461,7 +465,7 @@ export function ZkAuthButton({ privateKey: rawPrivateKey }: ZkAuthButtonProps) {
                         </div>
                         <div className="zkauth-wait-amount">
                           <div className="zkauth-wait-amount-value">{target.toFixed(1)}</div>
-                          <div className="zkauth-wait-amount-label">XLM total</div>
+                          <div className="zkauth-wait-amount-label">XLM needed</div>
                         </div>
                         <div className="zkauth-progress-section">
                           <div className="zkauth-progress-bar"><div className="zkauth-progress-fill" style={{ width: `${Math.min((identityBalance / target) * 100, 100)}%` }} /></div>

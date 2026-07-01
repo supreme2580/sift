@@ -9,8 +9,14 @@ async function getAccountWithRetry(server: rpc.Server, address: string, retries 
   for (let i = 0; i < retries; i++) {
     try {
       return await server.getAccount(address);
-    } catch {
-      if (i === retries - 1) throw new Error(`Account not found: ${address}`);
+    } catch (e: any) {
+      if (i === retries - 1) {
+        const msg = e?.message || String(e);
+        if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch')) {
+          throw new Error(`Cannot reach Stellar RPC — check your connection`);
+        }
+        throw new Error(`Account not found: ${address}`);
+      }
       await new Promise(r => setTimeout(r, delayMs));
     }
   }
@@ -33,30 +39,37 @@ async function prepareAndSend(
   signer: Keypair,
   networkPassphrase: string,
 ): Promise<TxResult> {
-  const built = tx.build();
-  const prepared = await server.prepareTransaction(built);
-  prepared.sign(signer);
-  const result = await server.sendTransaction(prepared);
+  try {
+    const built = tx.build();
+    const prepared = await server.prepareTransaction(built);
+    prepared.sign(signer);
+    const result = await server.sendTransaction(prepared);
 
-  if (result.status === 'ERROR') {
-    const txResult = result.errorResult?.result?.();
-    const code = typeof txResult === 'object' ? (txResult as any)?.code : undefined;
-    throw new Error(`tx rejected (${code || 'unknown'})`);
-  }
+    if (result.status === 'ERROR') {
+      const txResult = result.errorResult?.result?.();
+      const code = typeof txResult === 'object' ? (txResult as any)?.code : undefined;
+      throw new Error(`tx rejected (${code || 'unknown'})`);
+    }
 
-  const hash = result.hash;
-  const url = makeExplorerUrl(hash);
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    const txResult: any = await (server as any).getTransaction(hash);
-    if (txResult.status === 'SUCCESS') {
-      return { hash, url, status: 'SUCCESS' };
+    const hash = result.hash;
+    const url = makeExplorerUrl(hash);
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      const txResult: any = await (server as any).getTransaction(hash);
+      if (txResult.status === 'SUCCESS') {
+        return { hash, url, status: 'SUCCESS' };
+      }
+      if (txResult.status === 'FAILED') {
+        throw new Error(`Transaction failed — see ${url}`);
+      }
     }
-    if (txResult.status === 'FAILED') {
-      throw new Error(`Transaction failed — see ${url}`);
+    throw new Error(`Transaction timed out — see ${url}`);
+  } catch (e: any) {
+    if (e?.message?.includes('fetch') || e?.message?.includes('Failed to fetch') || e?.name === 'TypeError') {
+      throw new Error(`Cannot reach Stellar RPC — check your connection`);
     }
+    throw e;
   }
-  throw new Error(`Transaction timed out — see ${url}`);
 }
 
 export async function submitDeposit(

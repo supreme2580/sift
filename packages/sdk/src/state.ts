@@ -72,3 +72,14 @@ export function addDeposit(deposit: DepositInfo) {
   };
   notify();
 }
+
+export function claimDeposit(commitment: string) {
+  if (!stateRef.current) return;
+  stateRef.current = {
+    ...stateRef.current,
+    deposits: stateRef.current.deposits.map(d =>
+      d.commitment === commitment ? { ...d, claimed: true } : d
+    ),
+  };
+  notify();
+}
