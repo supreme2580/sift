@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState as reactUseState, useCallback, useRef } from 'react';
 
 export interface DepositInfo {
   commitment: string;
@@ -6,7 +6,7 @@ export interface DepositInfo {
   claimed: boolean;
 }
 
-export interface ZkPayState {
+export interface ZkAuthState {
   connected: boolean;
   privyUser: any | null;
   secret: Uint8Array | null;
@@ -15,7 +15,7 @@ export interface ZkPayState {
 }
 
 const stateRef: {
-  current: ZkPayState | null;
+  current: ZkAuthState | null;
   listeners: Set<() => void>;
 } = {
   current: null,
@@ -26,11 +26,11 @@ function notify() {
   stateRef.listeners.forEach((l) => l());
 }
 
-export function getZkPayState(): ZkPayState | null {
+export function getZkAuthState(): ZkAuthState | null {
   return stateRef.current;
 }
 
-export function subscribeToZkPay(listener: () => void): () => void {
+export function subscribeToZkAuth(listener: () => void): () => void {
   stateRef.listeners.add(listener);
   return () => stateRef.listeners.delete(listener);
 }

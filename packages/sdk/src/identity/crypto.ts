@@ -1,4 +1,5 @@
 import { BarretenbergSync } from '@aztec/bb.js';
+import { bytesToHex, hexToBytes } from './utils';
 
 const BN254_FR_MODULUS = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001n;
 
@@ -25,10 +26,6 @@ function bigIntToUint8ArrayBE(val: bigint, length: number = 32): Uint8Array {
   return result;
 }
 
-function frToBytes(fr: Uint8Array): Uint8Array {
-  return fr;
-}
-
 function bytesToFr(bytes: Uint8Array): Uint8Array {
   const val = uint8ArrayToBigInt(bytes) % BN254_FR_MODULUS;
   return bigIntToUint8ArrayBE(val);
@@ -51,16 +48,9 @@ export async function computeNullifier(commitment: Uint8Array, secretBytes: Uint
   return result.hash;
 }
 
-export function bytesToHex(bytes: Uint8Array): string {
-  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export function toFieldHex(bytes: Uint8Array): string {
   const val = uint8ArrayToBigInt(bytes) % BN254_FR_MODULUS;
   return '0x' + val.toString(16).padStart(64, '0');
 }
 
-export function hexToBytes(hex: string): Uint8Array {
-  const h = hex.replace('0x', '');
-  return new Uint8Array(h.match(/.{1,2}/g)?.map(b => parseInt(b, 16)) || []);
-}
+export { bytesToHex, hexToBytes };

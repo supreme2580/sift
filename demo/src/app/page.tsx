@@ -1,18 +1,29 @@
 'use client';
 
-import { ZkPayButton } from '@/zkpay/button';
+import { ZkAuthButton, useZkAuth } from '@zkauth/sdk';
+
+function BalanceDisplay() {
+  const { balance, connected } = useZkAuth();
+  if (!connected) return null;
+  return (
+    <div className="balance-display">
+      Balance: {Number(balance) / 1e7} XLM
+    </div>
+  );
+}
 
 export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <div className="app">
         <div className="logo-wrap">Z</div>
-        <h1>zkPay</h1>
+        <h1>zkAuth</h1>
         <p className="subtitle">
-          Private payments on Stellar.<br />
-          Deposit XLM, withdraw anonymously with zero-knowledge proofs.
+          Private identity on Stellar.<br />
+          Shield your address with zero-knowledge proofs.
         </p>
-        <ZkPayButton />
+        <ZkAuthButton />
+        <BalanceDisplay />
       </div>
     </div>
   );

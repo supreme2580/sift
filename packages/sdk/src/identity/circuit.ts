@@ -1,5 +1,8 @@
-import { Noir } from '@noir-lang/noir_js';
+import { Noir, type CompiledCircuit } from '@noir-lang/noir_js';
 import { toFieldHex } from './crypto';
+import circuitData from '../../circuits/identity.json' with { type: 'json' };
+
+const circuitJson = circuitData as CompiledCircuit;
 
 export interface ProofResult {
   proof: Uint8Array;
@@ -7,7 +10,6 @@ export interface ProofResult {
 }
 
 export async function generateProof(
-  circuitJson: any,
   commitment: Uint8Array,
   nullifier: Uint8Array,
   secret: Uint8Array,
@@ -45,3 +47,5 @@ export async function generateProof(
   onProgress?.('Proof generated');
   return { proof, publicInputs };
 }
+
+export { circuitJson };

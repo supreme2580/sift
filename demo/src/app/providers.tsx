@@ -1,20 +1,12 @@
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
+import { ZkAuthProvider } from '@zkauth/sdk';
 import type { ReactNode } from 'react';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <PrivyProvider
-      appId="cmqcnrgfd00650dl2djjr7892"
-      config={{
-        embeddedWallets: {
-          ethereum: { createOnLogin: 'all-users' },
-        },
-        appearance: { theme: 'dark' },
-      }}
-    >
+    <ZkAuthProvider appId="cmqcnrgfd00650dl2djjr7892">
       {children}
-    </PrivyProvider>
+    </ZkAuthProvider>
   );
 }

@@ -32,7 +32,6 @@ async function prepareAndSend(
     throw new Error(`tx rejected (${code || 'unknown'})`);
   }
 
-  // Soroban transactions are async — poll until confirmed or failed
   const hash = result.hash;
   const url = makeExplorerUrl(hash);
   for (let i = 0; i < 30; i++) {
@@ -61,7 +60,6 @@ export async function submitDeposit(
 
   const account = await server.getAccount(burnerKp.publicKey());
 
-  // Step 1: transfer XLM from burner to contract
   const transferTx = new TransactionBuilder(account, {
     fee: '1000',
     networkPassphrase: config.networkPassphrase,
@@ -75,7 +73,6 @@ export async function submitDeposit(
 
   await prepareAndSend(server, transferTx, burnerKp, config.networkPassphrase);
 
-  // Step 2: record commitment on-chain
   const account2 = await server.getAccount(burnerKp.publicKey());
   const depositTx = new TransactionBuilder(account2, {
     fee: '1000',
