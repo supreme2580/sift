@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/ultrahonk-soroban-verifier",
     "contracts/zkpay",
+    "contracts/shielded-counter",
 ]
 
 [workspace.dependencies]

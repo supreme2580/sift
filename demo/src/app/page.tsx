@@ -16,6 +16,10 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <div className="app">
+        <div className="nav-links">
+          <a href="/">zkAuth</a>
+          <a href="/counter">Counter</a>
+        </div>
         <div className="logo-wrap">Z</div>
         <h1>zkAuth</h1>
         <p className="subtitle">

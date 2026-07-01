@@ -533,3 +533,137 @@ h1 {
 .zkpay-spacer { height: 6px; }
 .zkpay-flex { display: flex; align-items: center; gap: 10px; }
 .zkpay-flex-center { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Counter Page */
+.counter-page {
+  padding: 3rem 2rem;
+  max-width: 520px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.counter-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+}
+
+.counter-section h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.counter-section p {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.counter-btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  background: var(--accent);
+  color: #fff;
+  transition: all 0.2s;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.counter-btn:hover {
+  background: #5558e6;
+  transform: translateY(-1px);
+}
+
+.counter-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.counter-btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.counter-btn-secondary:hover {
+  background: var(--surface-2);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.counter-display {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.03em;
+}
+
+.counter-display strong {
+  color: var(--accent-2);
+}
+
+.counter-log {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-top: 16px;
+}
+
+.counter-log::-webkit-scrollbar { width: 3px; }
+.counter-log::-webkit-scrollbar-track { background: transparent; }
+.counter-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+.counter-log .log-line {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-3);
+  padding: 4px 0;
+  line-height: 1.5;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+
+.counter-log .log-line:last-child { border-bottom: none; }
+
+.nav-links {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.nav-links a {
+  color: var(--text-3);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.12);
+  background: var(--surface);
+}
